@@ -134,18 +134,18 @@ std::array<int, 4> facingBlockXZ(std::array<int, 256> chunk, int i, int j) {
 	
     	// FRONT face (i-1)
     	if (i > 0 && chunk[id - 16] != 0)
-        	results[3] = 1;
+        	results[2] = 1;
 
     	// BACK face (i+1)
     	if (i < 15 && chunk[id + 16] != 0)
-        	results[2] = 1;
+        	results[3] = 1;
 
     	// LEFT face (j-1)
     	if (j > 0 && chunk[id - 1] != 0)
         	results[1] = 1;
 
     	// RIGHT face (j+1)
-    	if (j < 1 && chunk[id + 1] != 0)
+    	if (j < 15 && chunk[id + 1] != 0)
         	results[0] = 1;
 
 	return results;
@@ -379,8 +379,6 @@ int main() {
 					}
 					glm::mat4 model = glm::mat4(1.0f); // make sure to initialize matrix to identity matrix first
 					model = glm::translate(model, glm::vec3(float(i), -float(z), float(j)));//cubePositions[i]);
-					//float angle = 20.0f * i;
-					//model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
 					
 					ourShader.setMat4("model", model);
 					ourShader.setInt("textureSampler", 0);
@@ -405,14 +403,19 @@ int main() {
 						glDrawArrays(GL_TRIANGLES, 6, 6);
 					}
 					//Left
-					if (results[3] == false) {
+					if (results[2] == false) {
 						glDrawArrays(GL_TRIANGLES, 12, 6);
 					}
 					//Right
-					if (results[2] == false) {
+					if (results[3] == false) {
 						glDrawArrays(GL_TRIANGLES, 18, 6);	
 					}
 					
+					if (z == 0 && layer_2[i*16 + j] != 0) {
+						glBindTexture(GL_TEXTURE_2D, texture1); // grass top
+						glDrawArrays(GL_TRIANGLES, 30, 6);
+						continue;
+					}
 					glBindTexture(GL_TEXTURE_2D, texture3); // dirt
 					glDrawArrays(GL_TRIANGLES, 24, 6);
 					
