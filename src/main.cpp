@@ -118,6 +118,46 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
 	cameraFront = glm::normalize(direction);
 }
 
+//Given a slice of our chunk array:
+//int[] chunk = {0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1}
+//Calculate if we need to draw the faces
+//
+//You index by going i*4 + j to get the original block. +- 4 for left/right and +- 1 for front/back
+//
+//Returns a 4 boolean long array, saying which sides face into other blocks
+std::array<int, 4> facingBlockXZ(std::array<int, 256> chunk, int i, int j) {
+	std::array<int, 4> results = {0, 0, 0, 0};
+	
+	//Check all four sides
+	
+	int id = i*16 + j;
+	
+    	// FRONT face (i-1)
+    	if (i > 0 && chunk[id - 16] != 0)
+        	results[3] = 1;
+
+    	// BACK face (i+1)
+    	if (i < 15 && chunk[id + 16] != 0)
+        	results[2] = 1;
+
+    	// LEFT face (j-1)
+    	if (j > 0 && chunk[id - 1] != 0)
+        	results[1] = 1;
+
+    	// RIGHT face (j+1)
+    	if (j < 1 && chunk[id + 1] != 0)
+        	results[0] = 1;
+
+	return results;
+}
+
+void fillChunk(std::array<int, 256> chunk) {
+	for(int i = 0; i < 256; i++) { 
+		int random = rand();
+		chunk[i] = random % 2;
+	}	
+}
+
 int main() {
 	std::cout << "Starting Engine!\n";
 	GLFWwindow* window = initialiseWindow();
@@ -129,53 +169,59 @@ int main() {
 	
 	// set up vertex data (and buffer(s)) and configure vertex attributes
     	// ------------------------------------------------------------------
-        
 
 	float vertices[] = {
-	-0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-	0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
-	0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-	0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-	-0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-	-0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+	    // Front face (z = 0.5)
+	    -0.5f, -0.5f, 0.5f, 0,0,
+	     0.5f, -0.5f, 0.5f, 1,0,
+	     0.5f,  0.5f, 0.5f, 1,1,
+	     0.5f,  0.5f, 0.5f, 1,1,
+	    -0.5f,  0.5f, 0.5f, 0,1,
+	    -0.5f, -0.5f, 0.5f, 0,0,
 
-	-0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
-	-0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-	-0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
-	-0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
-	-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-	-0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
+	    // Back face (z = -0.5)
+	    0.5f, -0.5f, -0.5f, 0,0,
+	   -0.5f, -0.5f, -0.5f, 1,0,
+	   -0.5f,  0.5f, -0.5f, 1,1,
+	   -0.5f,  0.5f, -0.5f, 1,1,
+	    0.5f,  0.5f, -0.5f, 0,1,
+	    0.5f, -0.5f, -0.5f, 0,0,
 
-	0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
-	0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-	0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
-	0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
-	0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-	0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
+	    // Left face (x = -0.5)
+	   -0.5f, -0.5f, -0.5f, 0,0,
+	   -0.5f, -0.5f,  0.5f, 1,0,
+	   -0.5f,  0.5f,  0.5f, 1,1,
+	   -0.5f,  0.5f,  0.5f, 1,1,
+	   -0.5f,  0.5f, -0.5f, 0,1,
+	   -0.5f, -0.5f, -0.5f, 0,0,
 
-	0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
-	0.5f,  0.5f, -0.5f,  1.0f, 0.0f,
-	0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
-	0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
-	0.5f, -0.5f,  0.5f,  0.0f, 1.0f,
-	0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
+	    // Right face (x = 0.5)
+	    0.5f, -0.5f,  0.5f, 0,0,
+	    0.5f, -0.5f, -0.5f, 1,0,
+	    0.5f,  0.5f, -0.5f, 1,1,
+	    0.5f,  0.5f, -0.5f, 1,1,
+	    0.5f,  0.5f,  0.5f, 0,1,
+	    0.5f, -0.5f,  0.5f, 0,0,
 
-	-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-	0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
-	0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-	0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-	-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-	-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+	    // Bottom face (y = -0.5)
+	   -0.5f, -0.5f, -0.5f, 0,0,
+	    0.5f, -0.5f, -0.5f, 1,0,
+	    0.5f, -0.5f,  0.5f, 1,1,
+	    0.5f, -0.5f,  0.5f, 1,1,
+	   -0.5f, -0.5f,  0.5f, 0,1,
+	   -0.5f, -0.5f, -0.5f, 0,0,
 
-	-0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-	0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-	0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-	0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-	-0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
-	-0.5f,  0.5f, -0.5f,  0.0f, 1.0f
+	    // Top face (y = 0.5)
+	   -0.5f, 0.5f,  0.5f, 0,0,
+	    0.5f, 0.5f,  0.5f, 1,0,
+	    0.5f, 0.5f, -0.5f, 1,1,
+	    0.5f, 0.5f, -0.5f, 1,1,
+	   -0.5f, 0.5f, -0.5f, 0,1,
+	   -0.5f, 0.5f,  0.5f, 0,0
 	};
 
-    // world space positions of our cubes
+
+	// world space positions of our cubes
     glm::vec3 cubePositions[] = {
         glm::vec3( 0.0f,  0.0f,  0.0f),
         glm::vec3( 2.0f,  5.0f, -15.0f),
@@ -303,6 +349,8 @@ int main() {
 		    // activate shader
 		    ourShader.use();
 		    glEnable(GL_DEPTH_TEST);
+		    //glCullFace(GL_BACK);
+		    glEnable(GL_CULL_FACE);
 		    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		    
 		    // pass projection matrix to shader (note that in this case it could change every frame)
@@ -310,30 +358,71 @@ int main() {
 		    ourShader.setMat4("projection", projection);
 
 		    // camera/view transformation
-		    glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-		    ourShader.setMat4("view", view);
-
-
-        	// render boxes
+		glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+		ourShader.setMat4("view", view);
+		
+		std::array<int, 256> chunk; 		
+		fillChunk(chunk);
+		
+		std::array<int, 256> layer_2;
+		fillChunk(layer_2);
+		// render boxes
         	glBindVertexArray(VAO);
         	for (unsigned int i = 0; i < 16; i++) {
-			    for(unsigned int j = 0; j < 16; j ++) {
-				    // calculate the model matrix for each object and pass it to shader before drawing
-				    glm::mat4 model = glm::mat4(1.0f); // make sure to initialize matrix to identity matrix first
-				    model = glm::translate(model, glm::vec3(float(i), 1.0f, float(j)));//cubePositions[i]);
-				    float angle = 20.0f * i;
-				    //model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
-				    
-                    ourShader.setMat4("model", model);                                      
-                    glActiveTexture(GL_TEXTURE0);
-                    glBindTexture(GL_TEXTURE_2D, texture2); // grass side texture
-                    ourShader.setInt("textureSampler", 0);
-                    glDrawArrays(GL_TRIANGLES, 0, 24);
-                    glBindTexture(GL_TEXTURE_2D, texture3); // dirt
-                    glDrawArrays(GL_TRIANGLES, 24, 6);
-                    glBindTexture(GL_TEXTURE_2D, texture1); // grass top
-                    glDrawArrays(GL_TRIANGLES, 30, 6);
-                }
+			for(unsigned int j = 0; j < 16; j ++) {
+				for(unsigned int z = 0; z < 2; z++) {
+					// calculate the model matrix for each object and pass it to shader before drawing
+					if (z == 0 && chunk[i*16 + j] == 0) {
+						continue;
+					} else if (z == 1 && layer_2[i*16 + j] == 0) {
+						continue;
+					}
+					glm::mat4 model = glm::mat4(1.0f); // make sure to initialize matrix to identity matrix first
+					model = glm::translate(model, glm::vec3(float(i), -float(z), float(j)));//cubePositions[i]);
+					//float angle = 20.0f * i;
+					//model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
+					
+					ourShader.setMat4("model", model);
+					ourShader.setInt("textureSampler", 0);
+					glActiveTexture(GL_TEXTURE0);
+					if(z == 1 && chunk[i*16 + j] != 0) {
+						glBindTexture(GL_TEXTURE_2D, texture3); // dirt
+					} else {
+						glBindTexture(GL_TEXTURE_2D, texture2); // grass side texture
+					}
+					std::array<int, 4> results;
+					if(z == 0) {
+						results = facingBlockXZ(chunk, i, j);
+					} else {
+						results = facingBlockXZ(layer_2, i, j);	
+					}
+					//Front 
+					if (results[0] == false) {
+						glDrawArrays(GL_TRIANGLES, 0, 6);
+					}
+					//Back
+					if (results[1] == false) {
+						glDrawArrays(GL_TRIANGLES, 6, 6);
+					}
+					//Left
+					if (results[3] == false) {
+						glDrawArrays(GL_TRIANGLES, 12, 6);
+					}
+					//Right
+					if (results[2] == false) {
+						glDrawArrays(GL_TRIANGLES, 18, 6);	
+					}
+					
+					glBindTexture(GL_TEXTURE_2D, texture3); // dirt
+					glDrawArrays(GL_TRIANGLES, 24, 6);
+					
+					if (z == 1 && chunk[i*16 + j] != 0) {	
+						continue;
+					}
+					glBindTexture(GL_TEXTURE_2D, texture1); // grass top
+					glDrawArrays(GL_TRIANGLES, 30, 6);
+				}
+                	}
     		}
 		    glfwSwapBuffers(window);
             glfwPollEvents();	
