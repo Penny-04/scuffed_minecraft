@@ -1,11 +1,16 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+# include <cassert>
+# include <fstream>
+# include <sstream>
+
 #define STB_IMAGE_IMPLEMENTATION
 #include "../include/stb_image.h"
 
 #include "../include/glm/glm.hpp"
 #include "../include/glm/gtc/matrix_transform.hpp"
 #include "../include/glm/gtc/type_ptr.hpp"
+#include "../include/PerlinNoise/PerlinNoise.hpp"
 
 #include "../assets/shaders/shader.h"
 
@@ -18,7 +23,7 @@ const int SCR_WIDTH = 800;
 const int SCR_HEIGHT = 600;
 
 // camera
-glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f, 3.0f);
+glm::vec3 cameraPos   = glm::vec3(12.0f, 18.0f, 12.0f);
 glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
 glm::vec3 cameraUp    = glm::vec3(0.0f, 1.0f, 0.0f);
 
@@ -124,31 +129,25 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
 //
 //You index by going i*4 + j to get the original block. +- 4 for left/right and +- 1 for front/back
 //
-//Returns a 4 boolean long array, saying which sides face into other blocks
-std::array<int, 4> facingBlockXZ(std::array<int, 256> chunk, int i, int j) {
-	std::array<int, 4> results = {0, 0, 0, 0};
-	
-	//Check all four sides
-	
-	int id = i*16 + j;
-	
-    	// FRONT face (i-1)
-    	if (i > 0 && chunk[id - 16] != 0)
-        	results[2] = 1;
+// x = column, z = row
+std::array<int, 4> facingBlockXZ(const std::array<int, 256>& chunk, int x, int z) {
+    std::array<int, 4> results = {0,0,0,0}; // right, left, front, back
 
-    	// BACK face (i+1)
-    	if (i < 15 && chunk[id + 16] != 0)
-        	results[3] = 1;
+    int id = z*16 + x;
 
-    	// LEFT face (j-1)
-    	if (j > 0 && chunk[id - 1] != 0)
-        	results[1] = 1;
+    // RIGHT (x+1)
+    if (x < 15 && chunk[id + 1] != 0) results[0] = 1;
 
-    	// RIGHT face (j+1)
-    	if (j < 15 && chunk[id + 1] != 0)
-        	results[0] = 1;
+    // LEFT (x-1)
+    if (x > 0 && chunk[id - 1] != 0) results[1] = 1;
 
-	return results;
+    // FRONT (z-1)
+    if (z > 0 && chunk[id - 16] != 0) results[2] = 1;
+
+    // BACK (z+1)
+    if (z < 15 && chunk[id + 16] != 0) results[3] = 1;
+
+    return results;
 }
 
 void fillChunk(std::array<int, 256> chunk) {
@@ -261,7 +260,7 @@ int main() {
 
 	// load and create a texture 
 	// -------------------------
-	unsigned int texture1, texture2, texture3;
+	unsigned int texture1, texture2, texture3, texture4, texture5, texture6, texture7;
 	// texture 1
 	// ---------
 	glGenTextures(1, &texture1);
@@ -319,6 +318,83 @@ int main() {
 	} else {
 		std::cout << "Failed to load texture" << std::endl;
 	}
+	//texture 4 - stone
+	glGenTextures(1, &texture4);
+	glBindTexture(GL_TEXTURE_2D, texture4);
+	// set the texture wrapping parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	// set texture filtering parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	// load image, create texture and generate mipmaps
+	stbi_set_flip_vertically_on_load(true); // tell stb_image.h to flip loaded texture's on the y-axis.
+	data = stbi_load("../assets/textures/blocks/stone_block.png", &width, &height, &nrChannels, 0);
+	if (data) {
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+		glGenerateMipmap(GL_TEXTURE_2D);
+	} else {
+		std::cout << "Failed to load texture" << std::endl;
+	}
+
+
+	glGenTextures(1, &texture5);
+	glBindTexture(GL_TEXTURE_2D, texture5);
+	// set the texture wrapping parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	// set texture filtering parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	// load image, create texture and generate mipmaps
+	stbi_set_flip_vertically_on_load(true); // tell stb_image.h to flip loaded texture's on the y-axis.
+	data = stbi_load("../assets/textures/blocks/oak_log.png", &width, &height, &nrChannels, 0);
+	if (data) {
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+		glGenerateMipmap(GL_TEXTURE_2D);
+	} else {
+		std::cout << "Failed to load texture" << std::endl;
+	}
+
+
+	glGenTextures(1, &texture6);
+	glBindTexture(GL_TEXTURE_2D, texture6);
+	// set the texture wrapping parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	// set texture filtering parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	// load image, create texture and generate mipmaps
+	stbi_set_flip_vertically_on_load(true); // tell stb_image.h to flip loaded texture's on the y-axis.
+	data = stbi_load("../assets/textures/blocks/oak_log_top.png", &width, &height, &nrChannels, 0);
+	if (data) {
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+		glGenerateMipmap(GL_TEXTURE_2D);
+	} else {
+		std::cout << "Failed to load texture" << std::endl;
+	}
+	
+	glGenTextures(1, &texture7);
+	glBindTexture(GL_TEXTURE_2D, texture7);
+	// set the texture wrapping parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	// set texture filtering parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	// load image, create texture and generate mipmaps
+	stbi_set_flip_vertically_on_load(true); // tell stb_image.h to flip loaded texture's on the y-axis.
+	data = stbi_load("../assets/textures/blocks/oak_leaves.png", &width, &height, &nrChannels, 0);
+	if (data) {
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glGenerateMipmap(GL_TEXTURE_2D);
+	} else {
+		std::cout << "Failed to load texture" << std::endl;
+	}
+
 	stbi_image_free(data);
 	// tell opengl for each sampler to which texture unit it belongs to (only has to be done once)
 	// -------------------------------------------------------------------------------------------
@@ -337,7 +413,7 @@ int main() {
 
 		    // render
 		    // ------
-		    glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+		    glClearColor((135.0f/255.0f), (206.0f/255.0f), (235.0f/255.0f), 1.0f);
 		    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		    // bind textures on corresponding texture units
@@ -361,74 +437,133 @@ int main() {
 		glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 		ourShader.setMat4("view", view);
 		
-		std::array<int, 256> chunk; 		
-		fillChunk(chunk);
-		
-		std::array<int, 256> layer_2;
-		fillChunk(layer_2);
 		// render boxes
         	glBindVertexArray(VAO);
-        	for (unsigned int i = 0; i < 16; i++) {
-			for(unsigned int j = 0; j < 16; j ++) {
-				for(unsigned int z = 0; z < 2; z++) {
-					// calculate the model matrix for each object and pass it to shader before drawing
-					if (z == 0 && chunk[i*16 + j] == 0) {
-						continue;
-					} else if (z == 1 && layer_2[i*16 + j] == 0) {
-						continue;
+		
+		int img_width, img_height, img_channels;
+	
+		// Load the BMP using stb_image
+
+		unsigned char* pixels = stbi_load("../include/PerlinNoise/f8o8_0.bmp", &img_width, &img_height, &img_channels, 1); 
+		// last parameter 1 = force grayscale (0..255)
+		if (!pixels) {
+    			std::cerr << "Failed to load image!" << std::endl;
+    			return -1;
+		}
+
+		//Start with a single 16 x 16 x 16 area.
+		for(int counter = 0; counter < 3*3; counter++) {
+			std::array<int, 4096> chunklet;
+			chunklet.fill(0);
+			for(int x = 0; x < 16; x++) {
+				for(int z = 0; z < 16; z++) {
+					int terrainHeight = pixels[z * img_width + x] / 16;
+					for(int y = 0; y < terrainHeight - 5; y++) {
+						chunklet[y*256 + z * 16 + x] = 3; //Stone
 					}
-					glm::mat4 model = glm::mat4(1.0f); // make sure to initialize matrix to identity matrix first
-					model = glm::translate(model, glm::vec3(float(i), -float(z), float(j)));//cubePositions[i]);
-					
-					ourShader.setMat4("model", model);
-					ourShader.setInt("textureSampler", 0);
-					glActiveTexture(GL_TEXTURE0);
-					if(z == 1 && chunk[i*16 + j] != 0) {
-						glBindTexture(GL_TEXTURE_2D, texture3); // dirt
-					} else {
-						glBindTexture(GL_TEXTURE_2D, texture2); // grass side texture
+					for(int y = terrainHeight - 5; y < terrainHeight - 2; y++) {
+						chunklet[y*256 + z * 16 + x] = 2; //Dirt
 					}
-					std::array<int, 4> results;
-					if(z == 0) {
-						results = facingBlockXZ(chunk, i, j);
-					} else {
-						results = facingBlockXZ(layer_2, i, j);	
+					chunklet[(terrainHeight-1) * 256 + z * 16 + x] = 1;
+					if(terrainHeight <= 12) {
+						if (x*z*z*z % 31 == 7) {
+							chunklet[(terrainHeight + 3)*256 + z * 16 + x] = 4; //Grass
+							chunklet[(terrainHeight + 2)*256 + z * 16 + x] = 4; //Grass	
+							chunklet[(terrainHeight + 1)*256 + z * 16 + x] = 4; //Grass	
+							chunklet[(terrainHeight)*256 + z * 16 + x] = 4; //Grass		
+							for(int i = 0; i < 5; i++) {
+								for(int j = 0; j < 5; j++) {
+									chunklet[(terrainHeight + 3)*256 + (z - 2 + i) * 16 + x - 2 + j] = 5; //leaves
+								}
+							}
+						}
 					}
-					//Front 
-					if (results[0] == false) {
-						glDrawArrays(GL_TRIANGLES, 0, 6);
-					}
-					//Back
-					if (results[1] == false) {
-						glDrawArrays(GL_TRIANGLES, 6, 6);
-					}
-					//Left
-					if (results[2] == false) {
-						glDrawArrays(GL_TRIANGLES, 12, 6);
-					}
-					//Right
-					if (results[3] == false) {
-						glDrawArrays(GL_TRIANGLES, 18, 6);	
-					}
-					
-					if (z == 0 && layer_2[i*16 + j] != 0) {
-						glBindTexture(GL_TEXTURE_2D, texture1); // grass top
-						glDrawArrays(GL_TRIANGLES, 30, 6);
-						continue;
-					}
-					glBindTexture(GL_TEXTURE_2D, texture3); // dirt
-					glDrawArrays(GL_TRIANGLES, 24, 6);
-					
-					if (z == 1 && chunk[i*16 + j] != 0) {	
-						continue;
-					}
-					glBindTexture(GL_TEXTURE_2D, texture1); // grass top
-					glDrawArrays(GL_TRIANGLES, 30, 6);
 				}
-                	}
-    		}
-		    glfwSwapBuffers(window);
-            glfwPollEvents();	
+			}
+			//Draw that chunklet;
+			for(int y = 0; y < 16; y++) {
+				int offset = y * 256;
+				std::array<int, 256> layer;
+				std::copy_n(chunklet.begin() + offset, 256, layer.begin());
+				for(int x = 0; x < 16; x++) {
+					for(int z = 0; z < 16; z++) {
+						glEnable(GL_CULL_FACE);
+						int blockID = layer[z * 16 + x];
+						if (blockID == 0) {
+							continue;
+						}
+							
+						glm::mat4 block = glm::mat4(1.0f); // make sure to initialize matrix to identity matrix first
+						block = glm::translate(block, glm::vec3(x + 16 *(counter%3), y, z + 16 * (counter/3)));		
+						
+						ourShader.setMat4("model", block);
+						ourShader.setInt("textureSampler", 0);
+						glActiveTexture(GL_TEXTURE0);
+						
+						std::array<int, 4> results;
+						results.fill(0);
+						std::array<int, 2> y_faces;
+						y_faces.fill(0);
+					
+						//Calculate which xz faces we draw
+						if (blockID == 5) {		
+							glDisable(GL_CULL_FACE);
+							//We don't do culling for transparent blocks
+						} else {
+							results = facingBlockXZ(layer, x, z);	
+							//Calculate if we should draw the top and bottom faces.
+							if (y == 0) {
+								y_faces[0] = 1;
+							} else if (y == 15) {
+								y_faces[1] = 1;
+							}
+							if (y < 15 && y > 0) {
+								if (chunklet[(y+1)*256 + z * 16 + x] != 0) {
+									y_faces[0] = 1;
+								} 
+								if (chunklet[(y-1)*256 + z * 16 + x] != 0) {
+									y_faces[1] = 1;
+								}
+							}
+						}
+						if (blockID == 1) glBindTexture(GL_TEXTURE_2D, texture2); //Grass Walls	
+						if (blockID == 2) glBindTexture(GL_TEXTURE_2D, texture3); 
+						if (blockID == 3) glBindTexture(GL_TEXTURE_2D, texture4);
+						if (blockID == 4) glBindTexture(GL_TEXTURE_2D, texture5);
+						if (blockID == 5) glBindTexture(GL_TEXTURE_2D, texture7); //Leaves
+						//Front 
+						if (results[3] == 0) glDrawArrays(GL_TRIANGLES, 0, 6);
+						//Back
+						if (results[2] == 0) glDrawArrays(GL_TRIANGLES, 6, 6);
+						//Left
+						if (results[1] == 0) glDrawArrays(GL_TRIANGLES, 12, 6);
+						//Right
+						if (results[0] == 0) glDrawArrays(GL_TRIANGLES, 18, 6);
+						
+						if (blockID == 1) {
+							glBindTexture(GL_TEXTURE_2D, texture1);
+						}
+						if (blockID == 4) {
+							glBindTexture(GL_TEXTURE_2D, texture6);
+						}
+						//Top
+						if (y_faces[0] == false) {
+							glDrawArrays(GL_TRIANGLES, 30, 6);
+						}
+
+						if (blockID == 1) {
+							glBindTexture(GL_TEXTURE_2D, texture2);
+						}
+						//Bottom
+						if (y_faces[1] == false) {
+							glDrawArrays(GL_TRIANGLES, 24, 6);	
+						}
+					}
+				}
+			}
+		}
+		glfwSwapBuffers(window);
+        	glfwPollEvents();	
 	};
 
 	glfwTerminate();
